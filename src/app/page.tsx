@@ -1,4 +1,8 @@
-export default function Home() {
+import { checkSupabaseConnection } from "@/lib/supabase/server";
+
+export default async function Home() {
+  const isSupabaseConnected = await checkSupabaseConnection();
+
   return (
     <main className="flex min-h-screen items-center justify-center px-6">
       <section className="text-center">
@@ -9,6 +13,10 @@ export default function Home() {
           Sistema de gestão de presença em reuniões
         </p>
         <p className="mt-2 text-sm text-zinc-500">Ambiente configurado.</p>
+        <p className="mt-1 text-sm text-zinc-500">
+          Comunicação com o Supabase:{" "}
+          {isSupabaseConnected ? "confirmada" : "indisponível"}.
+        </p>
       </section>
     </main>
   );
