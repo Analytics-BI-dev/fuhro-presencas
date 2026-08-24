@@ -13,6 +13,7 @@ export const metadata: Metadata = {
 };
 
 const reasonMessages: Record<string, string> = {
+  "admin-required": "Você não possui permissão para gerenciar usuários.",
   "perfil-inativo": "Seu perfil está inativo. Procure um administrador.",
   "perfil-inexistente":
     "Seu usuário autenticado não possui um profile válido no sistema.",

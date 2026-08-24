@@ -181,3 +181,13 @@ export async function requireAuthorization() {
     user,
   };
 }
+
+export async function requireAdminAuthorization() {
+  const context = await requireAuthorization();
+
+  if (context.role !== "admin") {
+    redirect("/acesso-negado?motivo=admin-required");
+  }
+
+  return context;
+}

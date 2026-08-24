@@ -19,45 +19,54 @@ const navigation = [
   { href: "/reunioes", label: "Reuniões" },
   { href: "/corretores", label: "Corretores" },
   { href: "/equipes", label: "Equipes" },
-  { href: "/usuarios", label: "Usuários" },
+  { adminOnly: true, href: "/usuarios", label: "Usuários" },
 ];
 
-function Navigation({ currentPath }: { currentPath: string }) {
+function Navigation({
+  currentPath,
+  role,
+}: {
+  currentPath: string;
+  role: string;
+}) {
   return (
     <nav aria-label="Navegação principal" className="space-y-1">
-      {navigation.map((item) => {
-        const isActive =
-          currentPath === item.href || currentPath.startsWith(`${item.href}/`);
+      {navigation
+        .filter((item) => !item.adminOnly || role === "admin")
+        .map((item) => {
+          const isActive =
+            currentPath === item.href ||
+            currentPath.startsWith(`${item.href}/`);
 
-        return (
-          <Link
-            aria-current={isActive ? "page" : undefined}
-            className={`relative flex min-h-11 items-center gap-3 overflow-hidden rounded-xl px-4 text-sm font-semibold transition ${
-              isActive
-                ? "bg-brand-primary-soft text-brand-primary"
-                : "text-muted-foreground hover:bg-surface hover:text-brand-secondary"
-            }`}
-            href={item.href}
-            key={item.href}
-          >
-            {isActive ? (
+          return (
+            <Link
+              aria-current={isActive ? "page" : undefined}
+              className={`relative flex min-h-11 items-center gap-3 overflow-hidden rounded-xl px-4 text-sm font-semibold transition ${
+                isActive
+                  ? "bg-brand-primary-soft text-brand-primary"
+                  : "text-muted-foreground hover:bg-surface hover:text-brand-secondary"
+              }`}
+              href={item.href}
+              key={item.href}
+            >
+              {isActive ? (
+                <span
+                  aria-hidden="true"
+                  className="absolute inset-y-2 left-0 w-1 rounded-r-full bg-brand-primary"
+                />
+              ) : null}
               <span
                 aria-hidden="true"
-                className="absolute inset-y-2 left-0 w-1 rounded-r-full bg-brand-primary"
+                className={`h-2 w-2 rounded-full ${
+                  isActive
+                    ? "bg-brand-primary"
+                    : "border border-border bg-background"
+                }`}
               />
-            ) : null}
-            <span
-              aria-hidden="true"
-              className={`h-2 w-2 rounded-full ${
-                isActive
-                  ? "bg-brand-primary"
-                  : "border border-border bg-background"
-              }`}
-            />
-            {item.label}
-          </Link>
-        );
-      })}
+              {item.label}
+            </Link>
+          );
+        })}
     </nav>
   );
 }
@@ -100,7 +109,7 @@ export function AppShell({
           <p className="mb-3 px-4 text-[0.68rem] font-bold uppercase tracking-[0.18em] text-muted-foreground">
             Menu
           </p>
-          <Navigation currentPath={currentPath} />
+          <Navigation currentPath={currentPath} role={profile.role} />
         </div>
 
         <div className="mt-auto rounded-2xl border border-border bg-surface p-4">
@@ -132,7 +141,7 @@ export function AppShell({
                 <div className="mb-5 border-b border-border pb-4">
                   <Brand size="compact" />
                 </div>
-                <Navigation currentPath={currentPath} />
+                <Navigation currentPath={currentPath} role={profile.role} />
               </div>
             </details>
 
