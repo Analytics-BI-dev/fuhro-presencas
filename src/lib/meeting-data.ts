@@ -2,13 +2,13 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-type DatabaseRecord = Record<string, unknown>;
+import { loadAgencyParticipation } from "@/lib/attendance-data";
+import {
+  summarizeAttendance,
+  type ExpectedAttendance,
+} from "@/lib/attendance-rules";
 
-export type MeetingStatus =
-  | "Concluída"
-  | "Em andamento"
-  | "Pendente"
-  | "Sem corretores";
+type DatabaseRecord = Record<string, unknown>;
 
 export type MeetingListItem = {
   absentCount: number;
@@ -17,8 +17,6 @@ export type MeetingListItem = {
   observation: string | null;
   percentage: number;
   presentCount: number;
-  reviewedCount: number;
-  status: MeetingStatus;
   title: string | null;
   totalBrokers: number;
 };
@@ -79,18 +77,6 @@ function failDataQuery(
 ): never {
   logDataError(stage, error);
   throw new Error("Não foi possível carregar os dados de reuniões.");
-}
-
-function calculateStatus(total: number, reviewed: number): MeetingStatus {
-  if (total === 0) {
-    return "Sem corretores";
-  }
-
-  if (reviewed === 0) {
-    return "Pendente";
-  }
-
-  return reviewed >= total ? "Concluída" : "Em andamento";
 }
 
 function calculatePercentage(present: number, total: number) {
@@ -178,102 +164,30 @@ export async function loadMeetings(
   supabase: SupabaseClient,
   agencyId: string,
 ) {
-  const [meetingResult, brokerResult] = await Promise.all([
-    supabase
-      .from("reunioes")
-      .select("id,data_reuniao,titulo,observacao")
-      .eq("imobiliaria_id", agencyId)
-      .order("data_reuniao", { ascending: false }),
-    supabase
-      .from("corretores")
-      .select("id")
-      .eq("imobiliaria_id", agencyId)
-      .eq("ativo", true),
-  ]);
+  const participation = await loadAgencyParticipation(supabase, agencyId);
+  const factsByMeeting = new Map<string, ExpectedAttendance[]>();
 
-  if (meetingResult.error) {
-    failDataQuery("Falha ao buscar reunioes", meetingResult.error);
+  for (const fact of participation.facts) {
+    const meetingFacts = factsByMeeting.get(fact.meetingId) ?? [];
+    meetingFacts.push(fact);
+    factsByMeeting.set(fact.meetingId, meetingFacts);
   }
 
-  if (brokerResult.error) {
-    failDataQuery("Falha ao buscar corretores ativos", brokerResult.error);
-  }
+  return participation.meetings.map((meeting): MeetingListItem => {
+    const summary = summarizeAttendance(
+      factsByMeeting.get(meeting.id) ?? [],
+    );
 
-  const meetingRows = (meetingResult.data ?? []) as DatabaseRecord[];
-  const brokerIds = ((brokerResult.data ?? []) as DatabaseRecord[])
-    .map((broker) => readText(broker, "id"))
-    .filter((id): id is string => Boolean(id));
-  const meetingIds = meetingRows
-    .map((meeting) => readText(meeting, "id"))
-    .filter((id): id is string => Boolean(id));
-  const attendanceByMeeting = new Map<
-    string,
-    { absent: number; present: number; reviewed: number }
-  >();
-
-  if (meetingIds.length > 0 && brokerIds.length > 0) {
-    const { data: attendanceData, error: attendanceError } = await supabase
-      .from("presencas")
-      .select("reuniao_id,corretor_id,compareceu")
-      .in("reuniao_id", meetingIds)
-      .in("corretor_id", brokerIds);
-
-    if (attendanceError) {
-      failDataQuery("Falha ao buscar presencas", attendanceError);
-    }
-
-    for (const attendance of (attendanceData ?? []) as DatabaseRecord[]) {
-      const meetingId = readText(attendance, "reuniao_id");
-
-      if (!meetingId || typeof attendance.compareceu !== "boolean") {
-        continue;
-      }
-
-      const counts = attendanceByMeeting.get(meetingId) ?? {
-        absent: 0,
-        present: 0,
-        reviewed: 0,
-      };
-      counts.reviewed += 1;
-
-      if (attendance.compareceu) {
-        counts.present += 1;
-      } else {
-        counts.absent += 1;
-      }
-
-      attendanceByMeeting.set(meetingId, counts);
-    }
-  }
-
-  return meetingRows.flatMap((meeting): MeetingListItem[] => {
-    const id = readText(meeting, "id");
-    const date = readText(meeting, "data_reuniao");
-
-    if (!id || !date) {
-      return [];
-    }
-
-    const counts = attendanceByMeeting.get(id) ?? {
-      absent: 0,
-      present: 0,
-      reviewed: 0,
+    return {
+      absentCount: summary.absent,
+      date: meeting.date,
+      id: meeting.id,
+      observation: meeting.observation,
+      percentage: summary.percentage ?? 0,
+      presentCount: summary.present,
+      title: meeting.title,
+      totalBrokers: summary.total,
     };
-
-    return [
-      {
-        absentCount: counts.absent,
-        date,
-        id,
-        observation: readText(meeting, "observacao"),
-        percentage: calculatePercentage(counts.present, brokerIds.length),
-        presentCount: counts.present,
-        reviewedCount: counts.reviewed,
-        status: calculateStatus(brokerIds.length, counts.reviewed),
-        title: readText(meeting, "titulo"),
-        totalBrokers: brokerIds.length,
-      },
-    ];
   });
 }
 
@@ -282,97 +196,44 @@ export async function loadMeetingDetail(
   agencyId: string,
   meetingId: string,
 ): Promise<MeetingDetail | null> {
-  const { data: meetingData, error: meetingError } = await supabase
-    .from("reunioes")
-    .select("id,data_reuniao,titulo,observacao")
-    .eq("id", meetingId)
-    .eq("imobiliaria_id", agencyId)
-    .limit(2);
-
-  if (meetingError) {
-    failDataQuery("Falha ao buscar reuniao", meetingError);
-  }
-
-  const meetingRows = (meetingData ?? []) as DatabaseRecord[];
-
-  if (meetingRows.length !== 1) {
-    return null;
-  }
-
-  const meeting = meetingRows[0];
-  const id = readText(meeting, "id");
-  const date = readText(meeting, "data_reuniao");
-
-  if (!id || !date) {
-    return null;
-  }
-
-  const { data: brokerData, error: brokerError } = await supabase
-    .from("corretores")
-    .select("id,nome")
-    .eq("imobiliaria_id", agencyId)
-    .eq("ativo", true)
-    .order("nome", { ascending: true });
-
-  if (brokerError) {
-    failDataQuery("Falha ao buscar corretores ativos", brokerError);
-  }
-
-  const brokerRows = (brokerData ?? []) as DatabaseRecord[];
-  const brokerIds = brokerRows
-    .map((broker) => readText(broker, "id"))
-    .filter((brokerId): brokerId is string => Boolean(brokerId));
-  const historicalTeams = await resolveHistoricalTeams(
-    supabase,
-    agencyId,
-    date,
-    brokerIds,
+  const participation = await loadAgencyParticipation(supabase, agencyId);
+  const meeting = participation.meetings.find(
+    (item) => item.id === meetingId,
   );
-  const attendanceByBroker = new Map<string, boolean>();
 
-  if (brokerIds.length > 0) {
-    const { data: attendanceData, error: attendanceError } = await supabase
-      .from("presencas")
-      .select("corretor_id,compareceu")
-      .eq("reuniao_id", id)
-      .in("corretor_id", brokerIds);
-
-    if (attendanceError) {
-      failDataQuery("Falha ao buscar presencas da reuniao", attendanceError);
-    }
-
-    for (const attendance of (attendanceData ?? []) as DatabaseRecord[]) {
-      const brokerId = readText(attendance, "corretor_id");
-
-      if (brokerId && typeof attendance.compareceu === "boolean") {
-        attendanceByBroker.set(brokerId, attendance.compareceu);
-      }
-    }
+  if (!meeting) {
+    return null;
   }
 
-  const brokers = brokerRows.flatMap((broker): AttendanceBroker[] => {
-    const brokerId = readText(broker, "id");
+  const meetingFacts = participation.facts.filter(
+    (fact) => fact.meetingId === meeting.id,
+  );
+  const hasSavedAttendance = meetingFacts.some((fact) => fact.explicit);
+  const brokerById = new Map(
+    participation.brokers.map((broker) => [broker.id, broker] as const),
+  );
+  const teamNames = new Map(
+    participation.teams.map((team) => [team.id, team.name] as const),
+  );
+  const brokers = meetingFacts
+    .flatMap((fact): AttendanceBroker[] => {
+      const broker = brokerById.get(fact.brokerId);
 
-    if (!brokerId) {
-      return [];
-    }
+      if (!broker) {
+        return [];
+      }
 
-    const teamId = historicalTeams.brokerTeamIds.get(brokerId) ?? null;
-
-    return [
-      {
-        attendance: attendanceByBroker.has(brokerId)
-          ? (attendanceByBroker.get(brokerId) ?? false)
-          : null,
-        id: brokerId,
-        name: readText(broker, "nome") ?? "Corretor sem nome",
-        teamId,
-        teamName: teamId
-          ? (historicalTeams.teamNames.get(teamId) ?? null)
-          : null,
-      },
-    ];
-  });
+      return [
+        {
+          attendance: hasSavedAttendance ? fact.attended : true,
+          id: broker.id,
+          name: broker.name,
+          teamId: fact.teamId,
+          teamName: teamNames.get(fact.teamId) ?? null,
+        },
+      ];
+    })
+    .sort((left, right) => left.name.localeCompare(right.name, "pt-BR"));
   const presentCount = brokers.filter(
     (broker) => broker.attendance === true,
   ).length;
@@ -384,13 +245,13 @@ export async function loadMeetingDetail(
   return {
     absentCount,
     brokers,
-    date,
-    id,
-    observation: readText(meeting, "observacao"),
+    date: meeting.date,
+    id: meeting.id,
+    observation: meeting.observation,
     percentage: calculatePercentage(presentCount, brokers.length),
     presentCount,
     reviewedCount,
-    title: readText(meeting, "titulo"),
+    title: meeting.title,
     totalBrokers: brokers.length,
     unreviewedCount: brokers.length - reviewedCount,
   };

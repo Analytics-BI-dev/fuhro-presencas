@@ -240,7 +240,6 @@ export async function saveAttendance(
     .from("corretores")
     .select("id")
     .eq("imobiliaria_id", context.imobiliaria_id)
-    .eq("ativo", true)
     .in("id", brokerIds);
 
   if (brokerError) {
@@ -250,8 +249,9 @@ export async function saveAttendance(
     };
   }
 
+  const brokerRecords = (brokerData ?? []) as DatabaseRecord[];
   const validBrokerIds = new Set(
-    ((brokerData ?? []) as DatabaseRecord[])
+    brokerRecords
       .map((broker) => readId(broker))
       .filter((id): id is string => Boolean(id)),
   );
@@ -266,12 +266,57 @@ export async function saveAttendance(
     };
   }
 
+  const { data: linkData, error: linkError } = await context.supabase
+    .from("corretor_equipes")
+    .select("corretor_id,data_inicio,data_fim")
+    .in("corretor_id", brokerIds)
+    .lte("data_inicio", meetingDate);
+
+  if (linkError) {
+    return {
+      message: "Não foi possível validar os vínculos históricos dos corretores.",
+      ok: false,
+    };
+  }
+
+  const expectedBrokerIds = new Set(
+    ((linkData ?? []) as DatabaseRecord[]).flatMap((link) => {
+      const brokerId = readId(link, "corretor_id");
+      const endDate = readId(link, "data_fim");
+
+      return brokerId && (!endDate || endDate >= meetingDate)
+        ? [brokerId]
+        : [];
+    }),
+  );
+
+  if (brokerIds.some((brokerId) => !expectedBrokerIds.has(brokerId))) {
+    return {
+      message:
+        "Há um corretor sem vínculo válido com equipe na data da reunião.",
+      ok: false,
+    };
+  }
+
   const historicalTeams = await resolveHistoricalTeams(
     context.supabase,
     context.imobiliaria_id,
     meetingDate,
     brokerIds,
   );
+
+  if (
+    brokerIds.some(
+      (brokerId) => !historicalTeams.brokerTeamIds.has(brokerId),
+    )
+  ) {
+    return {
+      message:
+        "Há um corretor sem equipe válida da imobiliária na data da reunião.",
+      ok: false,
+    };
+  }
+
   const updatedAt = new Date().toISOString();
   const rows = entries.map((entry) => ({
     compareceu: entry.attended,
@@ -294,6 +339,8 @@ export async function saveAttendance(
 
   revalidatePath("/reunioes");
   revalidatePath(`/reunioes/${meetingId}`);
+  revalidatePath("/corretores");
+  revalidatePath("/historico");
 
   return {
     message: `Presença salva com sucesso para ${rows.length} ${

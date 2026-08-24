@@ -34,5 +34,14 @@ export async function login(formData: FormData) {
   }
 
   revalidatePath("/", "layout");
-  redirect("/dashboard");
+  redirect("/reunioes");
+}
+
+export async function logout() {
+  const supabase = await createClient();
+
+  await supabase.auth.signOut({ scope: "local" });
+
+  revalidatePath("/", "layout");
+  redirect("/login");
 }

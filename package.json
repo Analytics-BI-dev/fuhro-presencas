@@ -6,7 +6,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "import:dry": "node scripts/import-presencas.mjs",
+    "import:execute": "node scripts/import-presencas-execute.mjs",
+    "test:attendance": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types scripts/test-attendance-rules.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.5",
@@ -23,6 +26,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.3.2",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "xlsx": "^0.18.5"
   }
 }

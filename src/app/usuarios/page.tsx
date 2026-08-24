@@ -12,7 +12,7 @@ import {
   StatusBadge,
 } from "@/components/module-ui";
 import { SubmitButton } from "@/components/submit-button";
-import { requireAdminAuthorization } from "@/lib/access";
+import { requireAuthorization } from "@/lib/access";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   loadManagedUsers,
@@ -96,12 +96,18 @@ function roleLabel(role: string) {
 }
 
 function UserActions({
+  canManageUsers,
   currentUserId,
   user,
 }: {
+  canManageUsers: boolean;
   currentUserId: string;
   user: ManagedUser;
 }) {
+  if (!canManageUsers) {
+    return <span className="text-sm text-muted-foreground">Somente leitura</span>;
+  }
+
   return (
     <div className="flex flex-wrap items-center justify-end gap-3">
       <Link
@@ -264,7 +270,7 @@ export default async function UsersPage({
   searchParams: PageSearchParams;
 }) {
   const [context, params] = await Promise.all([
-    requireAdminAuthorization(),
+    requireAuthorization(),
     searchParams,
   ]);
   const adminClient = createAdminClient();
@@ -298,11 +304,12 @@ export default async function UsersPage({
     })
     .sort((first, second) => first.name.localeCompare(second.name, "pt-BR"));
   const filtersAreActive = Boolean(search || statusFilter);
-  const showCreateForm = action === "novo";
+  const canManageUsers = context.permissions.canManageUsers;
+  const showCreateForm = action === "novo" && canManageUsers;
   const userToReset = resetUserId
     ? users.find((user) => user.id === resetUserId)
     : undefined;
-  const showResetForm = Boolean(userToReset);
+  const showResetForm = Boolean(userToReset && canManageUsers);
 
   return (
     <AppShell
@@ -324,9 +331,11 @@ export default async function UsersPage({
           </p>
         </div>
 
-        <Link className={primaryButtonClassName} href="/usuarios?acao=novo">
-          Novo usuário
-        </Link>
+        {canManageUsers ? (
+          <Link className={primaryButtonClassName} href="/usuarios?acao=novo">
+            Novo usuário
+          </Link>
+        ) : null}
       </section>
 
       {successCode && successMessages[successCode] ? (
@@ -432,6 +441,7 @@ export default async function UsersPage({
                       </td>
                       <td className="px-4 py-4 text-right">
                         <UserActions
+                          canManageUsers={canManageUsers}
                           currentUserId={context.user.id}
                           user={user}
                         />
@@ -477,6 +487,7 @@ export default async function UsersPage({
                       Criado em {formatCreationDate(user.createdAt)}
                     </p>
                     <UserActions
+                      canManageUsers={canManageUsers}
                       currentUserId={context.user.id}
                       user={user}
                     />

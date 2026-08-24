@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { AppShell } from "@/components/app-shell";
+import { BrokerStatusToggle } from "@/components/broker-status-toggle";
 import {
   EmptyState,
   Field,
@@ -36,15 +37,20 @@ const errorMessages: Record<string, string> = {
     "Selecione uma equipe válida da imobiliária atual.",
   "nao-foi-possivel-salvar":
     "Não foi possível salvar o corretor. Revise os dados e tente novamente.",
+  "nao-foi-possivel-alterar-status":
+    "Não foi possível alterar o status do corretor. Tente novamente.",
   "nao-foi-possivel-vincular":
     "Não foi possível atualizar a equipe sem comprometer o histórico. Tente novamente.",
   "nome-obrigatorio": "Informe um nome válido para o corretor.",
+  "id-ksi-obrigatorio": "Informe o ID KSI do corretor.",
   "sem-permissao": "Seu perfil não possui permissão para esta operação.",
 };
 
 const successMessages: Record<string, string> = {
   "corretor-atualizado": "Corretor atualizado com sucesso.",
+  "corretor-ativado": "Corretor ativado com sucesso.",
   "corretor-criado": "Corretor cadastrado com sucesso.",
+  "corretor-inativado": "Corretor inativado com sucesso.",
 };
 
 function readParam(
@@ -89,7 +95,7 @@ function BrokerForm({
         />
       </Field>
 
-      <Field label="ID KSI (opcional)">
+      <Field label="ID KSI">
         <input
           autoComplete="off"
           className={inputClassName}
@@ -97,6 +103,7 @@ function BrokerForm({
           maxLength={100}
           name="id_ksi"
           placeholder="Identificador no KSI"
+          required
         />
       </Field>
 
@@ -138,8 +145,7 @@ function BrokerForm({
         </label>
       ) : (
         <p className="rounded-xl bg-surface px-4 py-3 text-xs leading-5 text-muted-foreground">
-          Como operador, você pode editar os dados e a equipe, mas somente um
-          administrador pode alterar o status.
+          Seu perfil possui acesso somente para consulta.
         </p>
       )}
 
@@ -152,6 +158,25 @@ function BrokerForm({
         />
       </div>
     </form>
+  );
+}
+
+function AttendanceSummary({ broker }: { broker: BrokerListItem }) {
+  if (broker.attendancePercentage === null) {
+    return <span className="text-sm text-muted-foreground">Sem registros</span>;
+  }
+
+  return (
+    <div>
+      <p className="text-sm font-semibold text-brand-secondary">
+        {broker.attendancePercentage}% de presença
+      </p>
+      <p className="mt-1 text-xs text-muted-foreground">
+        {broker.presentCount} presente{broker.presentCount === 1 ? "" : "s"} ·{" "}
+        {broker.absentCount} ausente{broker.absentCount === 1 ? "" : "s"} ·{" "}
+        {broker.attendanceCount} reuni{broker.attendanceCount === 1 ? "ão" : "ões"}
+      </p>
+    </div>
   );
 }
 
@@ -312,6 +337,7 @@ export default async function BrokersPage({
                     <th className="px-5 py-4 font-semibold">Nome</th>
                     <th className="px-5 py-4 font-semibold">Equipe atual</th>
                     <th className="px-5 py-4 font-semibold">ID KSI</th>
+                    <th className="px-5 py-4 font-semibold">Presença</th>
                     <th className="px-5 py-4 font-semibold">Status</th>
                     <th className="px-5 py-4 text-right font-semibold">
                       Ações
@@ -334,7 +360,18 @@ export default async function BrokersPage({
                         {broker.ksiId ?? "—"}
                       </td>
                       <td className="px-5 py-4">
-                        <StatusBadge active={broker.active} />
+                        <AttendanceSummary broker={broker} />
+                      </td>
+                      <td className="px-5 py-4">
+                        {context.permissions.canToggleStatus ? (
+                          <BrokerStatusToggle
+                            active={broker.active}
+                            brokerId={broker.id}
+                            brokerName={broker.name}
+                          />
+                        ) : (
+                          <StatusBadge active={broker.active} />
+                        )}
                       </td>
                       <td className="px-5 py-4 text-right">
                         {context.permissions.canEdit ? (
@@ -368,7 +405,15 @@ export default async function BrokersPage({
                         ID KSI: {broker.ksiId ?? "Não informado"}
                       </p>
                     </div>
-                    <StatusBadge active={broker.active} />
+                    {context.permissions.canToggleStatus ? (
+                      <BrokerStatusToggle
+                        active={broker.active}
+                        brokerId={broker.id}
+                        brokerName={broker.name}
+                      />
+                    ) : (
+                      <StatusBadge active={broker.active} />
+                    )}
                   </div>
                   <div className="mt-4 flex items-center justify-between border-t border-border pt-3">
                     <p className="text-sm text-muted-foreground">
@@ -385,6 +430,9 @@ export default async function BrokersPage({
                         Editar
                       </Link>
                     ) : null}
+                  </div>
+                  <div className="mt-3 rounded-xl bg-surface px-3 py-3">
+                    <AttendanceSummary broker={broker} />
                   </div>
                 </article>
               ))}

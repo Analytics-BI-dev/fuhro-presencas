@@ -25,6 +25,7 @@ export type AccessPermissions = {
   canCreate: boolean;
   canEdit: boolean;
   canToggleStatus: boolean;
+  canManageUsers: boolean;
 };
 
 function denyAccess(
@@ -65,7 +66,8 @@ export function getPermissions(role: SystemRole): AccessPermissions {
   return {
     canCreate: canEdit,
     canEdit,
-    canToggleStatus: role === "admin",
+    canToggleStatus: canEdit,
+    canManageUsers: role === "admin",
   };
 }
 
@@ -185,7 +187,7 @@ export async function requireAuthorization() {
 export async function requireAdminAuthorization() {
   const context = await requireAuthorization();
 
-  if (context.role !== "admin") {
+  if (!context.permissions.canManageUsers) {
     redirect("/acesso-negado?motivo=admin-required");
   }
 

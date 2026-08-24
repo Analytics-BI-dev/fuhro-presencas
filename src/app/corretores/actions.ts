@@ -21,18 +21,6 @@ function readRequiredText(formData: FormData, field: string, maxLength: number) 
     : null;
 }
 
-function readOptionalText(formData: FormData, field: string, maxLength: number) {
-  const value = formData.get(field);
-
-  if (typeof value !== "string") {
-    return null;
-  }
-
-  const normalizedValue = value.trim();
-
-  return normalizedValue ? normalizedValue.slice(0, maxLength) : null;
-}
-
 function readOptionalId(formData: FormData, field: string) {
   const value = formData.get(field);
 
@@ -225,9 +213,14 @@ export async function createBroker(formData: FormData) {
   }
 
   const name = readRequiredText(formData, "nome", 180);
+  const ksiId = readRequiredText(formData, "id_ksi", 100);
 
   if (!name) {
     redirect("/corretores?acao=novo&erro=nome-obrigatorio");
+  }
+
+  if (!ksiId) {
+    redirect("/corretores?acao=novo&erro=id-ksi-obrigatorio");
   }
 
   const teamId = readOptionalId(formData, "equipe_id");
@@ -242,7 +235,7 @@ export async function createBroker(formData: FormData) {
       ativo: context.permissions.canToggleStatus
         ? formData.get("ativo") === "on"
         : true,
-      id_ksi: readOptionalText(formData, "id_ksi", 100),
+      id_ksi: ksiId,
       imobiliaria_id: context.agency.id,
       nome: name,
     })
@@ -281,6 +274,7 @@ export async function updateBroker(formData: FormData) {
 
   const brokerId = readRequiredText(formData, "corretor_id", 100);
   const name = readRequiredText(formData, "nome", 180);
+  const ksiId = readRequiredText(formData, "id_ksi", 100);
 
   if (!brokerId) {
     redirect("/corretores?erro=corretor-invalido");
@@ -289,6 +283,12 @@ export async function updateBroker(formData: FormData) {
   if (!name) {
     redirect(
       `/corretores?editar=${encodeURIComponent(brokerId)}&erro=nome-obrigatorio`,
+    );
+  }
+
+  if (!ksiId) {
+    redirect(
+      `/corretores?editar=${encodeURIComponent(brokerId)}&erro=id-ksi-obrigatorio`,
     );
   }
 
@@ -313,7 +313,7 @@ export async function updateBroker(formData: FormData) {
   }
 
   const changes: Record<string, unknown> = {
-    id_ksi: readOptionalText(formData, "id_ksi", 100),
+    id_ksi: ksiId,
     nome: name,
   };
 
@@ -342,4 +342,41 @@ export async function updateBroker(formData: FormData) {
   revalidatePath("/corretores");
   revalidatePath("/equipes");
   redirect("/corretores?sucesso=corretor-atualizado");
+}
+
+export async function toggleBrokerStatus(formData: FormData) {
+  const context = await requireAuthorization();
+
+  if (!context.permissions.canToggleStatus) {
+    redirect("/corretores?erro=sem-permissao");
+  }
+
+  const brokerId = readRequiredText(formData, "corretor_id", 100);
+  const activeValue = formData.get("ativo");
+
+  if (
+    !brokerId ||
+    (activeValue !== "true" && activeValue !== "false")
+  ) {
+    redirect("/corretores?erro=corretor-invalido");
+  }
+
+  const active = activeValue === "true";
+  const { data, error } = await context.supabase
+    .from("corretores")
+    .update({ ativo: active })
+    .eq("id", brokerId)
+    .eq("imobiliaria_id", context.agency.id)
+    .select("id");
+
+  if (error || (data ?? []).length !== 1) {
+    redirect("/corretores?erro=nao-foi-possivel-alterar-status");
+  }
+
+  revalidatePath("/corretores");
+  revalidatePath("/reunioes");
+  revalidatePath("/historico");
+  redirect(
+    `/corretores?sucesso=${active ? "corretor-ativado" : "corretor-inativado"}`,
+  );
 }

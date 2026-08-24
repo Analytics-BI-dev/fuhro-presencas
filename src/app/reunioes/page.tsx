@@ -16,7 +16,6 @@ import {
   formatMeetingDate,
   loadMeetings,
   type MeetingListItem,
-  type MeetingStatus,
 } from "@/lib/meeting-data";
 
 import { createMeeting, updateMeeting } from "./actions";
@@ -69,21 +68,6 @@ function todayInSaoPaulo() {
 
 function meetingTitle(meeting: MeetingListItem) {
   return meeting.title ?? `Reunião de ${formatMeetingDate(meeting.date)}`;
-}
-
-function StatusBadge({ status }: { status: MeetingStatus }) {
-  const style =
-    status === "Concluída"
-      ? "bg-emerald-50 text-emerald-700"
-      : status === "Em andamento"
-        ? "bg-amber-50 text-amber-700"
-        : "bg-surface-muted text-muted-foreground";
-
-  return (
-    <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${style}`}>
-      {status}
-    </span>
-  );
 }
 
 function MeetingForm({ meeting }: { meeting?: MeetingListItem }) {
@@ -223,7 +207,6 @@ export default async function MeetingsPage({
                     <th className="px-4 py-4 text-center font-semibold">
                       Presença
                     </th>
-                    <th className="px-4 py-4 font-semibold">Status</th>
                     <th className="px-4 py-4 text-right font-semibold">
                       Ações
                     </th>
@@ -256,9 +239,6 @@ export default async function MeetingsPage({
                         {meeting.percentage}%
                       </td>
                       <td className="px-4 py-4">
-                        <StatusBadge status={meeting.status} />
-                      </td>
-                      <td className="px-4 py-4">
                         <div className="flex justify-end gap-3">
                           {context.permissions.canEdit ? (
                             <Link
@@ -285,16 +265,13 @@ export default async function MeetingsPage({
             <div className="divide-y divide-border lg:hidden">
               {meetings.map((meeting) => (
                 <article className="p-4 sm:p-5" key={meeting.id}>
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-xs font-semibold text-brand-primary">
-                        {formatMeetingDate(meeting.date)}
-                      </p>
-                      <h3 className="mt-1 font-semibold text-brand-secondary">
-                        {meetingTitle(meeting)}
-                      </h3>
-                    </div>
-                    <StatusBadge status={meeting.status} />
+                  <div>
+                    <p className="text-xs font-semibold text-brand-primary">
+                      {formatMeetingDate(meeting.date)}
+                    </p>
+                    <h3 className="mt-1 font-semibold text-brand-secondary">
+                      {meetingTitle(meeting)}
+                    </h3>
                   </div>
                   <dl className="mt-4 grid grid-cols-4 gap-2 rounded-xl bg-surface p-3 text-center">
                     <div>

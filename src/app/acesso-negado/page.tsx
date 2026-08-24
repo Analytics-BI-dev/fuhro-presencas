@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { logout } from "@/app/dashboard/actions";
+import { logout } from "@/app/login/actions";
 import { Brand } from "@/components/brand";
 import {
   primaryButtonClassName,

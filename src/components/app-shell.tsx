@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
-import { logout } from "@/app/dashboard/actions";
+import { logout } from "@/app/login/actions";
 import { Brand } from "@/components/brand";
 
 type AppShellProps = {
@@ -15,25 +15,17 @@ type AppShellProps = {
 };
 
 const navigation = [
-  { href: "/dashboard", label: "Dashboard" },
   { href: "/reunioes", label: "Reuniões" },
   { href: "/corretores", label: "Corretores" },
   { href: "/equipes", label: "Equipes" },
-  { adminOnly: true, href: "/usuarios", label: "Usuários" },
+  { href: "/historico", label: "Histórico" },
+  { href: "/usuarios", label: "Usuários" },
 ];
 
-function Navigation({
-  currentPath,
-  role,
-}: {
-  currentPath: string;
-  role: string;
-}) {
+function Navigation({ currentPath }: { currentPath: string }) {
   return (
     <nav aria-label="Navegação principal" className="space-y-1">
-      {navigation
-        .filter((item) => !item.adminOnly || role === "admin")
-        .map((item) => {
+      {navigation.map((item) => {
           const isActive =
             currentPath === item.href ||
             currentPath.startsWith(`${item.href}/`);
@@ -109,7 +101,7 @@ export function AppShell({
           <p className="mb-3 px-4 text-[0.68rem] font-bold uppercase tracking-[0.18em] text-muted-foreground">
             Menu
           </p>
-          <Navigation currentPath={currentPath} role={profile.role} />
+          <Navigation currentPath={currentPath} />
         </div>
 
         <div className="mt-auto rounded-2xl border border-border bg-surface p-4">
@@ -141,7 +133,7 @@ export function AppShell({
                 <div className="mb-5 border-b border-border pb-4">
                   <Brand size="compact" />
                 </div>
-                <Navigation currentPath={currentPath} role={profile.role} />
+                <Navigation currentPath={currentPath} />
               </div>
             </details>
 
