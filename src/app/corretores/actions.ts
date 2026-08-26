@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { requireAuthorization } from "@/lib/access";
+import { checkBrokerDeletion } from "@/lib/deletion-guards";
 import { syncCorretoresSheet } from "@/lib/google-sheets/sync";
 
 type DatabaseRecord = Record<string, unknown>;
@@ -48,6 +49,15 @@ function readId(record: DatabaseRecord, field = "id") {
   }
 
   return null;
+}
+
+function deletionWasConfirmed(formData: FormData) {
+  return formData.get("confirmacao") === "excluir";
+}
+
+function logDeletionError(stage: string, error: { code?: string } | null) {
+  const code = error?.code?.replace(/[^A-Za-z0-9_-]/g, "").slice(0, 40);
+  console.error(`[DELETE_BROKER] ${stage}: code=${code || "UNKNOWN"}`);
 }
 
 function todayInSaoPaulo() {
@@ -395,5 +405,113 @@ export async function toggleBrokerStatus(formData: FormData) {
   );
   redirect(
     `/corretores?sucesso=${active ? "corretor-ativado" : "corretor-inativado"}${sheetsResult.ok ? "" : "&aviso=google-sheets"}`,
+  );
+}
+
+export async function deleteBroker(formData: FormData) {
+  const context = await requireAuthorization();
+
+  if (!context.permissions.canDelete) {
+    redirect("/corretores?erro=sem-permissao");
+  }
+
+  const brokerId = readRequiredText(formData, "corretor_id", 100);
+
+  if (!brokerId || !deletionWasConfirmed(formData)) {
+    redirect("/corretores?erro=corretor-invalido");
+  }
+
+  const { data: brokerData, error: brokerError } = await context.supabase
+    .from("corretores")
+    .select("id")
+    .eq("id", brokerId)
+    .eq("imobiliaria_id", context.imobiliaria_id)
+    .limit(2);
+
+  if (brokerError) {
+    logDeletionError("Falha ao validar corretor", brokerError);
+    redirect("/corretores?erro=nao-foi-possivel-excluir");
+  }
+
+  if ((brokerData ?? []).length !== 1) {
+    redirect("/corretores?erro=corretor-invalido");
+  }
+
+  const deletionCheck = await checkBrokerDeletion(
+    context.supabase,
+    brokerId,
+  );
+
+  if (!deletionCheck.ok) {
+    logDeletionError("Falha ao validar histórico", deletionCheck.error);
+    redirect("/corretores?erro=nao-foi-possivel-excluir");
+  }
+
+  if (deletionCheck.hasHistory) {
+    redirect("/corretores?erro=corretor-possui-historico");
+  }
+
+  const linkRows = deletionCheck.links;
+
+  if (linkRows.length > 0) {
+    const { data: deletedLinks, error: deleteLinksError } =
+      await context.supabase
+      .from("corretor_equipes")
+      .delete()
+      .eq("corretor_id", brokerId)
+      .in(
+        "id",
+        linkRows.map((link) => link.id),
+      )
+      .is("data_fim", null)
+      .select("id");
+
+    if (deleteLinksError || (deletedLinks ?? []).length !== linkRows.length) {
+      logDeletionError("Falha ao excluir vínculos atuais", deleteLinksError);
+
+      const { error: restoreError } = await context.supabase
+        .from("corretor_equipes")
+        .upsert(linkRows, { onConflict: "id" });
+
+      if (restoreError) {
+        logDeletionError("Falha ao restaurar vínculos", restoreError);
+      }
+
+      redirect("/corretores?erro=nao-foi-possivel-excluir");
+    }
+  }
+
+  const { data: deletedBrokerData, error: deleteBrokerError } =
+    await context.supabase
+      .from("corretores")
+      .delete()
+      .eq("id", brokerId)
+      .eq("imobiliaria_id", context.imobiliaria_id)
+      .select("id");
+
+  if (deleteBrokerError || (deletedBrokerData ?? []).length !== 1) {
+    if (linkRows.length > 0) {
+      const { error: restoreError } = await context.supabase
+        .from("corretor_equipes")
+        .upsert(linkRows, { onConflict: "id" });
+
+      if (restoreError) {
+        logDeletionError("Falha ao restaurar vínculos", restoreError);
+      }
+    }
+
+    logDeletionError("Falha ao excluir corretor", deleteBrokerError);
+    redirect("/corretores?erro=nao-foi-possivel-excluir");
+  }
+
+  revalidatePath("/corretores");
+  revalidatePath("/equipes");
+  revalidatePath("/reunioes");
+  const sheetsResult = await syncCorretoresSheet(
+    context.supabase,
+    context.imobiliaria_id,
+  );
+  redirect(
+    `/corretores?sucesso=corretor-excluido${sheetsResult.ok ? "" : "&aviso=google-sheets-exclusao"}`,
   );
 }

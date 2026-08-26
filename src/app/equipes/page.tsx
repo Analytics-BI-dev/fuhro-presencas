@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { AppShell } from "@/components/app-shell";
+import { DeleteActionLink } from "@/components/delete-action-link";
+import { DeleteConfirmationModal } from "@/components/delete-confirmation-modal";
 import {
   EmptyState,
   Field,
@@ -13,9 +15,10 @@ import {
 } from "@/components/module-ui";
 import { SubmitButton } from "@/components/submit-button";
 import { requireAuthorization } from "@/lib/access";
+import { checkTeamDeletion } from "@/lib/deletion-guards";
 import { loadTeams, type TeamListItem } from "@/lib/directory-data";
 
-import { createTeam, updateTeam } from "./actions";
+import { createTeam, deleteTeam, updateTeam } from "./actions";
 
 export const metadata: Metadata = {
   title: "Equipes | Fuhro Presenças",
@@ -29,6 +32,10 @@ const errorMessages: Record<string, string> = {
   "equipe-invalida": "A equipe informada não está disponível para edição.",
   "nao-foi-possivel-salvar":
     "Não foi possível salvar a equipe. Revise os dados e tente novamente.",
+  "nao-foi-possivel-excluir":
+    "Não foi possível excluir a equipe. Tente novamente.",
+  "equipe-possui-historico":
+    "Esta equipe possui histórico e não pode ser excluída. Inative a equipe para preservar os registros.",
   "nome-obrigatorio": "Informe um nome válido para a equipe.",
   "sem-permissao": "Seu perfil não possui permissão para esta operação.",
 };
@@ -36,6 +43,7 @@ const errorMessages: Record<string, string> = {
 const successMessages: Record<string, string> = {
   "equipe-atualizada": "Equipe atualizada com sucesso.",
   "equipe-criada": "Equipe cadastrada com sucesso.",
+  "equipe-excluida": "Equipe excluída com sucesso.",
 };
 
 function readParam(
@@ -132,12 +140,20 @@ export default async function TeamsPage({
   const result = await loadTeams(context.supabase, context.agency.id);
   const action = readParam(params, "acao");
   const editId = readParam(params, "editar");
+  const deleteId = readParam(params, "excluir");
   const errorCode = readParam(params, "erro");
   const successCode = readParam(params, "sucesso");
   const warningCode = readParam(params, "aviso");
   const teamToEdit = editId
     ? result.data.find((team) => team.id === editId)
     : undefined;
+  const teamToDelete = deleteId
+    ? result.data.find((team) => team.id === deleteId)
+    : undefined;
+  const deletionCheck =
+    teamToDelete && context.permissions.canDelete
+      ? await checkTeamDeletion(context.supabase, teamToDelete.id)
+      : null;
   const showNewForm = action === "nova" && context.permissions.canCreate;
   const showEditForm = Boolean(teamToEdit && context.permissions.canEdit);
 
@@ -177,8 +193,26 @@ export default async function TeamsPage({
           type="warning"
         />
       ) : null}
+      {warningCode === "google-sheets-exclusao" ? (
+        <FlashMessage
+          message="Registro excluído, mas não foi possível sincronizar o Google Sheets."
+          type="warning"
+        />
+      ) : null}
       {errorCode && errorMessages[errorCode] && !showNewForm && !showEditForm ? (
         <FlashMessage message={errorMessages[errorCode]} type="error" />
+      ) : null}
+      {deletionCheck && !deletionCheck.ok ? (
+        <FlashMessage
+          message="Não foi possível validar se a equipe possui histórico. Tente novamente."
+          type="error"
+        />
+      ) : null}
+      {deletionCheck?.ok && deletionCheck.hasHistory ? (
+        <FlashMessage
+          message={errorMessages["equipe-possui-historico"]}
+          type="error"
+        />
       ) : null}
       {result.error ? <FlashMessage message={result.error} type="error" /> : null}
 
@@ -226,12 +260,20 @@ export default async function TeamsPage({
                       </td>
                       <td className="px-5 py-4 text-right">
                         {context.permissions.canEdit ? (
-                          <Link
-                            className="text-sm font-semibold text-brand-primary transition hover:text-brand-primary-hover"
-                            href={`/equipes?editar=${encodeURIComponent(team.id)}`}
-                          >
-                            Editar
-                          </Link>
+                          <div className="flex items-center justify-end gap-3">
+                            <Link
+                              className="text-sm font-semibold text-brand-primary transition hover:text-brand-primary-hover"
+                              href={`/equipes?editar=${encodeURIComponent(team.id)}`}
+                            >
+                              Editar
+                            </Link>
+                            {context.permissions.canDelete ? (
+                              <DeleteActionLink
+                                href={`/equipes?excluir=${encodeURIComponent(team.id)}`}
+                                label="Excluir equipe"
+                              />
+                            ) : null}
+                          </div>
                         ) : (
                           <span className="text-sm text-muted-foreground">
                             Somente leitura
@@ -270,12 +312,20 @@ export default async function TeamsPage({
                       corretores atuais
                     </p>
                     {context.permissions.canEdit ? (
-                      <Link
-                        className="text-sm font-semibold text-brand-primary"
-                        href={`/equipes?editar=${encodeURIComponent(team.id)}`}
-                      >
-                        Editar
-                      </Link>
+                      <div className="flex items-center gap-3">
+                        <Link
+                          className="text-sm font-semibold text-brand-primary"
+                          href={`/equipes?editar=${encodeURIComponent(team.id)}`}
+                        >
+                          Editar
+                        </Link>
+                        {context.permissions.canDelete ? (
+                          <DeleteActionLink
+                            href={`/equipes?excluir=${encodeURIComponent(team.id)}`}
+                            label="Excluir equipe"
+                          />
+                        ) : null}
+                      </div>
                     ) : null}
                   </div>
                 </article>
@@ -324,6 +374,17 @@ export default async function TeamsPage({
             />
           </section>
         </div>
+      ) : null}
+
+      {teamToDelete && deletionCheck?.ok && !deletionCheck.hasHistory ? (
+        <DeleteConfirmationModal
+          action={deleteTeam}
+          cancelHref="/equipes"
+          description="Esta equipe não possui histórico. A exclusão é permanente."
+          fieldName="equipe_id"
+          fieldValue={teamToDelete.id}
+          title="Excluir equipe?"
+        />
       ) : null}
     </AppShell>
   );

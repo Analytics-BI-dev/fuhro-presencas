@@ -9,6 +9,9 @@ export const primaryButtonClassName =
 export const secondaryButtonClassName =
   "inline-flex min-h-11 items-center justify-center rounded-xl border border-border bg-background px-4 text-sm font-semibold text-brand-secondary transition hover:border-brand-primary/30 hover:bg-brand-primary-soft hover:text-brand-primary";
 
+export const destructiveButtonClassName =
+  "inline-flex min-h-11 items-center justify-center rounded-xl bg-red-600 px-4 text-sm font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60";
+
 export function StatusBadge({
   active,
   activeLabel = "Ativo",

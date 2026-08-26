@@ -23,6 +23,7 @@ export type AuthorizationProfile = {
 
 export type AccessPermissions = {
   canCreate: boolean;
+  canDelete: boolean;
   canEdit: boolean;
   canToggleStatus: boolean;
   canManageUsers: boolean;
@@ -65,6 +66,7 @@ export function getPermissions(role: SystemRole): AccessPermissions {
 
   return {
     canCreate: canEdit,
+    canDelete: canEdit,
     canEdit,
     canToggleStatus: canEdit,
     canManageUsers: role === "admin",

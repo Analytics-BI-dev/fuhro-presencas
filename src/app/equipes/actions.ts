@@ -4,7 +4,17 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { requireAuthorization } from "@/lib/access";
+import { checkTeamDeletion } from "@/lib/deletion-guards";
 import { syncEquipesSheet } from "@/lib/google-sheets/sync";
+
+function deletionWasConfirmed(formData: FormData) {
+  return formData.get("confirmacao") === "excluir";
+}
+
+function logDeletionError(stage: string, error: { code?: string } | null) {
+  const code = error?.code?.replace(/[^A-Za-z0-9_-]/g, "").slice(0, 40);
+  console.error(`[DELETE_TEAM] ${stage}: code=${code || "UNKNOWN"}`);
+}
 
 function readRequiredText(formData: FormData, field: string, maxLength: number) {
   const value = formData.get(field);
@@ -130,5 +140,69 @@ export async function updateTeam(formData: FormData) {
   );
   redirect(
     `/equipes?sucesso=equipe-atualizada${sheetsResult.ok ? "" : "&aviso=google-sheets"}`,
+  );
+}
+
+export async function deleteTeam(formData: FormData) {
+  const context = await requireAuthorization();
+
+  if (!context.permissions.canDelete) {
+    redirect("/equipes?erro=sem-permissao");
+  }
+
+  const teamId = readRequiredText(formData, "equipe_id", 100);
+
+  if (!teamId || !deletionWasConfirmed(formData)) {
+    redirect("/equipes?erro=equipe-invalida");
+  }
+
+  const { data: teamData, error: teamError } = await context.supabase
+    .from("equipes")
+    .select("id")
+    .eq("id", teamId)
+    .eq("imobiliaria_id", context.imobiliaria_id)
+    .limit(2);
+
+  if (teamError) {
+    logDeletionError("Falha ao validar equipe", teamError);
+    redirect("/equipes?erro=nao-foi-possivel-excluir");
+  }
+
+  if ((teamData ?? []).length !== 1) {
+    redirect("/equipes?erro=equipe-invalida");
+  }
+
+  const deletionCheck = await checkTeamDeletion(context.supabase, teamId);
+
+  if (!deletionCheck.ok) {
+    logDeletionError("Falha ao validar histórico", deletionCheck.error);
+    redirect("/equipes?erro=nao-foi-possivel-excluir");
+  }
+
+  if (deletionCheck.hasHistory) {
+    redirect("/equipes?erro=equipe-possui-historico");
+  }
+
+  const { data: deletedTeamData, error: deleteTeamError } =
+    await context.supabase
+      .from("equipes")
+      .delete()
+      .eq("id", teamId)
+      .eq("imobiliaria_id", context.imobiliaria_id)
+      .select("id");
+
+  if (deleteTeamError || (deletedTeamData ?? []).length !== 1) {
+    logDeletionError("Falha ao excluir equipe", deleteTeamError);
+    redirect("/equipes?erro=nao-foi-possivel-excluir");
+  }
+
+  revalidatePath("/equipes");
+  revalidatePath("/corretores");
+  const sheetsResult = await syncEquipesSheet(
+    context.supabase,
+    context.imobiliaria_id,
+  );
+  redirect(
+    `/equipes?sucesso=equipe-excluida${sheetsResult.ok ? "" : "&aviso=google-sheets-exclusao"}`,
   );
 }

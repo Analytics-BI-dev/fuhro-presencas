@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { AppShell } from "@/components/app-shell";
+import { DeleteActionLink } from "@/components/delete-action-link";
+import { DeleteConfirmationModal } from "@/components/delete-confirmation-modal";
 import {
   EmptyState,
   Field,
@@ -18,7 +20,7 @@ import {
   type MeetingListItem,
 } from "@/lib/meeting-data";
 
-import { createMeeting, updateMeeting } from "./actions";
+import { createMeeting, deleteMeeting, updateMeeting } from "./actions";
 
 export const metadata: Metadata = {
   title: "Reuniões | Fuhro Presenças",
@@ -34,6 +36,8 @@ const errorMessages: Record<string, string> = {
   "data-invalida": "Informe uma data válida para a reunião.",
   "nao-foi-possivel-salvar":
     "Não foi possível salvar a reunião. Tente novamente.",
+  "nao-foi-possivel-excluir":
+    "Não foi possível excluir a reunião. Verifique o relacionamento das presenças e tente novamente.",
   "reuniao-invalida":
     "A reunião informada não pertence à imobiliária atual.",
   "sem-permissao": "Seu perfil possui acesso somente para consulta.",
@@ -41,6 +45,7 @@ const errorMessages: Record<string, string> = {
 
 const successMessages: Record<string, string> = {
   "reuniao-atualizada": "Reunião atualizada com sucesso.",
+  "reuniao-excluida": "Reunião excluída com sucesso.",
 };
 
 function readParam(
@@ -140,11 +145,15 @@ export default async function MeetingsPage({
   );
   const action = readParam(params, "acao");
   const editId = readParam(params, "editar");
+  const deleteId = readParam(params, "excluir");
   const errorCode = readParam(params, "erro");
   const successCode = readParam(params, "sucesso");
   const warningCode = readParam(params, "aviso");
   const meetingToEdit = editId
     ? meetings.find((meeting) => meeting.id === editId)
+    : undefined;
+  const meetingToDelete = deleteId
+    ? meetings.find((meeting) => meeting.id === deleteId)
     : undefined;
   const showNewForm = action === "nova" && context.permissions.canCreate;
   const showEditForm = Boolean(meetingToEdit && context.permissions.canEdit);
@@ -181,6 +190,12 @@ export default async function MeetingsPage({
       {warningCode === "google-sheets" ? (
         <FlashMessage
           message="Alteração salva, mas não foi possível sincronizar com o Google Sheets."
+          type="warning"
+        />
+      ) : null}
+      {warningCode === "google-sheets-exclusao" ? (
+        <FlashMessage
+          message="Registro excluído, mas não foi possível sincronizar o Google Sheets."
           type="warning"
         />
       ) : null}
@@ -246,7 +261,7 @@ export default async function MeetingsPage({
                         {meeting.percentage}%
                       </td>
                       <td className="px-4 py-4">
-                        <div className="flex justify-end gap-3">
+                        <div className="flex items-center justify-end gap-3">
                           {context.permissions.canEdit ? (
                             <Link
                               className="text-sm font-semibold text-muted-foreground transition hover:text-brand-primary"
@@ -261,6 +276,12 @@ export default async function MeetingsPage({
                           >
                             {context.permissions.canEdit ? "Lançar" : "Consultar"}
                           </Link>
+                          {context.permissions.canDelete ? (
+                            <DeleteActionLink
+                              href={`/reunioes?excluir=${encodeURIComponent(meeting.id)}`}
+                              label="Excluir reunião"
+                            />
+                          ) : null}
                         </div>
                       </td>
                     </tr>
@@ -314,7 +335,7 @@ export default async function MeetingsPage({
                       </dd>
                     </div>
                   </dl>
-                  <div className="mt-4 flex justify-end gap-4">
+                  <div className="mt-4 flex items-center justify-end gap-4">
                     {context.permissions.canEdit ? (
                       <Link
                         className="text-sm font-semibold text-muted-foreground"
@@ -329,6 +350,12 @@ export default async function MeetingsPage({
                     >
                       {context.permissions.canEdit ? "Lançar presença" : "Consultar"}
                     </Link>
+                    {context.permissions.canDelete ? (
+                      <DeleteActionLink
+                        href={`/reunioes?excluir=${encodeURIComponent(meeting.id)}`}
+                        label="Excluir reunião"
+                      />
+                    ) : null}
                   </div>
                 </article>
               ))}
@@ -373,6 +400,17 @@ export default async function MeetingsPage({
             <MeetingForm meeting={showEditForm ? meetingToEdit : undefined} />
           </section>
         </div>
+      ) : null}
+
+      {meetingToDelete && context.permissions.canDelete ? (
+        <DeleteConfirmationModal
+          action={deleteMeeting}
+          cancelHref="/reunioes"
+          description="Esta ação excluirá a reunião e todas as presenças registradas nela. Esta ação não pode ser desfeita."
+          fieldName="reuniao_id"
+          fieldValue={meetingToDelete.id}
+          title="Excluir reunião?"
+        />
       ) : null}
     </AppShell>
   );

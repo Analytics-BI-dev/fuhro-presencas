@@ -3,6 +3,8 @@ import Link from "next/link";
 
 import { AppShell } from "@/components/app-shell";
 import { BrokerStatusToggle } from "@/components/broker-status-toggle";
+import { DeleteActionLink } from "@/components/delete-action-link";
+import { DeleteConfirmationModal } from "@/components/delete-confirmation-modal";
 import {
   EmptyState,
   Field,
@@ -14,13 +16,14 @@ import {
 } from "@/components/module-ui";
 import { SubmitButton } from "@/components/submit-button";
 import { requireAuthorization } from "@/lib/access";
+import { checkBrokerDeletion } from "@/lib/deletion-guards";
 import {
   loadBrokers,
   type BrokerListItem,
   type TeamListItem,
 } from "@/lib/directory-data";
 
-import { createBroker, updateBroker } from "./actions";
+import { createBroker, deleteBroker, updateBroker } from "./actions";
 
 export const metadata: Metadata = {
   title: "Corretores | Fuhro Presenças",
@@ -39,9 +42,13 @@ const errorMessages: Record<string, string> = {
     "Não foi possível salvar o corretor. Revise os dados e tente novamente.",
   "nao-foi-possivel-alterar-status":
     "Não foi possível alterar o status do corretor. Tente novamente.",
+  "nao-foi-possivel-excluir":
+    "Não foi possível excluir o corretor. Tente novamente.",
   "nao-foi-possivel-vincular":
     "Não foi possível atualizar a equipe sem comprometer o histórico. Tente novamente.",
   "nome-obrigatorio": "Informe um nome válido para o corretor.",
+  "corretor-possui-historico":
+    "Este corretor possui histórico de reuniões e não pode ser excluído. Inative o corretor para preservar os registros.",
   "id-ksi-obrigatorio": "Informe o ID KSI do corretor.",
   "sem-permissao": "Seu perfil não possui permissão para esta operação.",
 };
@@ -50,6 +57,7 @@ const successMessages: Record<string, string> = {
   "corretor-atualizado": "Corretor atualizado com sucesso.",
   "corretor-ativado": "Corretor ativado com sucesso.",
   "corretor-criado": "Corretor cadastrado com sucesso.",
+  "corretor-excluido": "Corretor excluído com sucesso.",
   "corretor-inativado": "Corretor inativado com sucesso.",
 };
 
@@ -195,6 +203,7 @@ export default async function BrokersPage({
   const statusFilter = readParam(params, "status");
   const action = readParam(params, "acao");
   const editId = readParam(params, "editar");
+  const deleteId = readParam(params, "excluir");
   const errorCode = readParam(params, "erro");
   const successCode = readParam(params, "sucesso");
   const warningCode = readParam(params, "aviso");
@@ -220,6 +229,13 @@ export default async function BrokersPage({
   const brokerToEdit = editId
     ? result.data.brokers.find((broker) => broker.id === editId)
     : undefined;
+  const brokerToDelete = deleteId
+    ? result.data.brokers.find((broker) => broker.id === deleteId)
+    : undefined;
+  const deletionCheck =
+    brokerToDelete && context.permissions.canDelete
+      ? await checkBrokerDeletion(context.supabase, brokerToDelete.id)
+      : null;
   const showNewForm = action === "novo" && context.permissions.canCreate;
   const showEditForm = Boolean(brokerToEdit && context.permissions.canEdit);
   const filtersAreActive = Boolean(search || teamFilter || statusFilter);
@@ -260,8 +276,26 @@ export default async function BrokersPage({
           type="warning"
         />
       ) : null}
+      {warningCode === "google-sheets-exclusao" ? (
+        <FlashMessage
+          message="Registro excluído, mas não foi possível sincronizar o Google Sheets."
+          type="warning"
+        />
+      ) : null}
       {errorCode && errorMessages[errorCode] && !showNewForm && !showEditForm ? (
         <FlashMessage message={errorMessages[errorCode]} type="error" />
+      ) : null}
+      {deletionCheck && !deletionCheck.ok ? (
+        <FlashMessage
+          message="Não foi possível validar se o corretor possui histórico. Tente novamente."
+          type="error"
+        />
+      ) : null}
+      {deletionCheck?.ok && deletionCheck.hasHistory ? (
+        <FlashMessage
+          message={errorMessages["corretor-possui-historico"]}
+          type="error"
+        />
       ) : null}
       {result.error ? <FlashMessage message={result.error} type="error" /> : null}
 
@@ -382,12 +416,20 @@ export default async function BrokersPage({
                       </td>
                       <td className="px-5 py-4 text-right">
                         {context.permissions.canEdit ? (
-                          <Link
-                            className="text-sm font-semibold text-brand-primary transition hover:text-brand-primary-hover"
-                            href={`/corretores?editar=${encodeURIComponent(broker.id)}`}
-                          >
-                            Editar
-                          </Link>
+                          <div className="flex items-center justify-end gap-3">
+                            <Link
+                              className="text-sm font-semibold text-brand-primary transition hover:text-brand-primary-hover"
+                              href={`/corretores?editar=${encodeURIComponent(broker.id)}`}
+                            >
+                              Editar
+                            </Link>
+                            {context.permissions.canDelete ? (
+                              <DeleteActionLink
+                                href={`/corretores?excluir=${encodeURIComponent(broker.id)}`}
+                                label="Excluir corretor"
+                              />
+                            ) : null}
+                          </div>
                         ) : (
                           <span className="text-sm text-muted-foreground">
                             Somente leitura
@@ -430,12 +472,20 @@ export default async function BrokersPage({
                       </span>
                     </p>
                     {context.permissions.canEdit ? (
-                      <Link
-                        className="text-sm font-semibold text-brand-primary"
-                        href={`/corretores?editar=${encodeURIComponent(broker.id)}`}
-                      >
-                        Editar
-                      </Link>
+                      <div className="flex items-center gap-3">
+                        <Link
+                          className="text-sm font-semibold text-brand-primary"
+                          href={`/corretores?editar=${encodeURIComponent(broker.id)}`}
+                        >
+                          Editar
+                        </Link>
+                        {context.permissions.canDelete ? (
+                          <DeleteActionLink
+                            href={`/corretores?excluir=${encodeURIComponent(broker.id)}`}
+                            label="Excluir corretor"
+                          />
+                        ) : null}
+                      </div>
                     ) : null}
                   </div>
                   <div className="mt-3 rounded-xl bg-surface px-3 py-3">
@@ -488,6 +538,17 @@ export default async function BrokersPage({
             />
           </section>
         </div>
+      ) : null}
+
+      {brokerToDelete && deletionCheck?.ok && !deletionCheck.hasHistory ? (
+        <DeleteConfirmationModal
+          action={deleteBroker}
+          cancelHref="/corretores"
+          description="Este corretor não possui histórico. A exclusão é permanente."
+          fieldName="corretor_id"
+          fieldValue={brokerToDelete.id}
+          title="Excluir corretor?"
+        />
       ) : null}
     </AppShell>
   );

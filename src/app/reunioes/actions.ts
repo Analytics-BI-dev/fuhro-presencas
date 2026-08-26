@@ -54,6 +54,15 @@ function readId(record: DatabaseRecord, key = "id") {
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
+function deletionWasConfirmed(formData: FormData) {
+  return formData.get("confirmacao") === "excluir";
+}
+
+function logDeletionError(stage: string, error: { code?: string } | null) {
+  const code = error?.code?.replace(/[^A-Za-z0-9_-]/g, "").slice(0, 40);
+  console.error(`[DELETE_MEETING] ${stage}: code=${code || "UNKNOWN"}`);
+}
+
 async function findMeeting(
   context: Awaited<ReturnType<typeof requireAuthorization>>,
   meetingId: string,
@@ -370,4 +379,49 @@ export async function saveAttendance(
     }.`,
     ok: true,
   };
+}
+
+export async function deleteMeeting(formData: FormData) {
+  const context = await requireAuthorization();
+
+  if (!context.permissions.canDelete) {
+    redirect("/reunioes?erro=sem-permissao");
+  }
+
+  const meetingId = readText(formData, "reuniao_id");
+
+  if (
+    !meetingId ||
+    meetingId.length > 100 ||
+    !deletionWasConfirmed(formData)
+  ) {
+    redirect("/reunioes?erro=reuniao-invalida");
+  }
+
+  if (!(await findMeeting(context, meetingId))) {
+    redirect("/reunioes?erro=reuniao-invalida");
+  }
+
+  const { data, error } = await context.supabase
+    .from("reunioes")
+    .delete()
+    .eq("id", meetingId)
+    .eq("imobiliaria_id", context.imobiliaria_id)
+    .select("id");
+
+  if (error || (data ?? []).length !== 1) {
+    logDeletionError("Falha ao excluir reunião", error);
+    redirect("/reunioes?erro=nao-foi-possivel-excluir");
+  }
+
+  revalidatePath("/reunioes");
+  revalidatePath("/corretores");
+  revalidatePath("/historico");
+  const sheetsResult = await syncRegistroSheet(
+    context.supabase,
+    context.imobiliaria_id,
+  );
+  redirect(
+    `/reunioes?sucesso=reuniao-excluida${sheetsResult.ok ? "" : "&aviso=google-sheets-exclusao"}`,
+  );
 }

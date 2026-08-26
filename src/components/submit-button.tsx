@@ -3,6 +3,7 @@
 import { useFormStatus } from "react-dom";
 
 import {
+  destructiveButtonClassName,
   primaryButtonClassName,
   secondaryButtonClassName,
 } from "@/components/module-ui";
@@ -14,7 +15,7 @@ export function SubmitButton({
 }: {
   label: string;
   pendingLabel?: string;
-  variant?: "primary" | "secondary";
+  variant?: "danger" | "primary" | "secondary";
 }) {
   const { pending } = useFormStatus();
 
@@ -24,7 +25,9 @@ export function SubmitButton({
       className={
         variant === "secondary"
           ? secondaryButtonClassName
-          : primaryButtonClassName
+          : variant === "danger"
+            ? destructiveButtonClassName
+            : primaryButtonClassName
       }
       disabled={pending}
       type="submit"
