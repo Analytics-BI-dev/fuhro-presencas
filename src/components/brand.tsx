@@ -28,10 +28,10 @@ export function Brand({
       <Image
         alt="Logo Fuhro"
         className={`${logoSizes[size]} w-auto object-contain`}
-        height={93}
+        height={1254}
         preload={size === "large"}
         src="/fuhro-logo.png"
-        width={114}
+        width={1254}
       />
       {showName ? (
         <div>
