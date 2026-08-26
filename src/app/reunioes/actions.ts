@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { requireAuthorization } from "@/lib/access";
+import { syncRegistroSheet } from "@/lib/google-sheets/sync";
 import { resolveHistoricalTeams } from "@/lib/meeting-data";
 
 type DatabaseRecord = Record<string, unknown>;
@@ -11,6 +12,7 @@ type DatabaseRecord = Record<string, unknown>;
 export type SaveAttendanceResult = {
   message: string;
   ok: boolean;
+  warning?: boolean;
 };
 
 function readText(formData: FormData, field: string) {
@@ -161,7 +163,13 @@ export async function updateMeeting(formData: FormData) {
 
   revalidatePath("/reunioes");
   revalidatePath(`/reunioes/${meetingId}`);
-  redirect("/reunioes?sucesso=reuniao-atualizada");
+  const sheetsResult = await syncRegistroSheet(
+    context.supabase,
+    context.imobiliaria_id,
+  );
+  redirect(
+    `/reunioes?sucesso=reuniao-atualizada${sheetsResult.ok ? "" : "&aviso=google-sheets"}`,
+  );
 }
 
 export async function saveAttendance(
@@ -341,6 +349,20 @@ export async function saveAttendance(
   revalidatePath(`/reunioes/${meetingId}`);
   revalidatePath("/corretores");
   revalidatePath("/historico");
+
+  const sheetsResult = await syncRegistroSheet(
+    context.supabase,
+    context.imobiliaria_id,
+  );
+
+  if (!sheetsResult.ok) {
+    return {
+      message:
+        "Presença salva, mas não foi possível sincronizar com o Google Sheets.",
+      ok: true,
+      warning: true,
+    };
+  }
 
   return {
     message: `Presença salva com sucesso para ${rows.length} ${

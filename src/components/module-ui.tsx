@@ -42,16 +42,19 @@ export function FlashMessage({
   type,
 }: {
   message: string;
-  type: "error" | "success";
+  type: "error" | "success" | "warning";
 }) {
+  const colorClassName =
+    type === "success"
+      ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+      : type === "warning"
+        ? "border-amber-200 bg-amber-50 text-amber-800"
+        : "border-red-200 bg-red-50 text-red-700";
+
   return (
     <div
       aria-live="polite"
-      className={`mt-5 rounded-xl border px-4 py-3 text-sm ${
-        type === "success"
-          ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-          : "border-red-200 bg-red-50 text-red-700"
-      }`}
+      className={`mt-5 rounded-xl border px-4 py-3 text-sm ${colorClassName}`}
       role={type === "error" ? "alert" : "status"}
     >
       {message}

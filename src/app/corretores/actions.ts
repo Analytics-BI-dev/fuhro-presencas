@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { requireAuthorization } from "@/lib/access";
+import { syncCorretoresSheet } from "@/lib/google-sheets/sync";
 
 type DatabaseRecord = Record<string, unknown>;
 
@@ -262,7 +263,13 @@ export async function createBroker(formData: FormData) {
 
   revalidatePath("/corretores");
   revalidatePath("/equipes");
-  redirect("/corretores?sucesso=corretor-criado");
+  const sheetsResult = await syncCorretoresSheet(
+    context.supabase,
+    context.imobiliaria_id,
+  );
+  redirect(
+    `/corretores?sucesso=corretor-criado${sheetsResult.ok ? "" : "&aviso=google-sheets"}`,
+  );
 }
 
 export async function updateBroker(formData: FormData) {
@@ -341,7 +348,13 @@ export async function updateBroker(formData: FormData) {
 
   revalidatePath("/corretores");
   revalidatePath("/equipes");
-  redirect("/corretores?sucesso=corretor-atualizado");
+  const sheetsResult = await syncCorretoresSheet(
+    context.supabase,
+    context.imobiliaria_id,
+  );
+  redirect(
+    `/corretores?sucesso=corretor-atualizado${sheetsResult.ok ? "" : "&aviso=google-sheets"}`,
+  );
 }
 
 export async function toggleBrokerStatus(formData: FormData) {
@@ -376,7 +389,11 @@ export async function toggleBrokerStatus(formData: FormData) {
   revalidatePath("/corretores");
   revalidatePath("/reunioes");
   revalidatePath("/historico");
+  const sheetsResult = await syncCorretoresSheet(
+    context.supabase,
+    context.imobiliaria_id,
+  );
   redirect(
-    `/corretores?sucesso=${active ? "corretor-ativado" : "corretor-inativado"}`,
+    `/corretores?sucesso=${active ? "corretor-ativado" : "corretor-inativado"}${sheetsResult.ok ? "" : "&aviso=google-sheets"}`,
   );
 }

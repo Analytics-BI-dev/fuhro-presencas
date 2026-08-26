@@ -22,6 +22,7 @@ import {
 import {
   createManagedUser,
   resetUserPassword,
+  syncGoogleSheetsManually,
   updateUserStatus,
 } from "./actions";
 
@@ -43,6 +44,8 @@ const errorMessages: Record<string, string> = {
   "falha-senha": "Não foi possível redefinir a senha. Tente novamente.",
   "falha-status":
     "Não foi possível alterar o status do usuário. Tente novamente.",
+  "google-sheets-sync":
+    "Não foi possível sincronizar o Google Sheets. Tente novamente.",
   "senha-invalida": "A senha deve possuir pelo menos 8 caracteres.",
   "senhas-diferentes": "A senha e a confirmação devem ser iguais.",
   "usuario-invalido":
@@ -51,6 +54,7 @@ const errorMessages: Record<string, string> = {
 
 const successMessages: Record<string, string> = {
   "senha-redefinida": "Senha redefinida com sucesso.",
+  "google-sheets-sync": "Google Sheets sincronizado com sucesso.",
   "usuario-criado": "Usuário criado com sucesso.",
   "usuario-inativado": "Usuário inativado com sucesso.",
   "usuario-reativado": "Usuário reativado com sucesso.",
@@ -332,9 +336,18 @@ export default async function UsersPage({
         </div>
 
         {canManageUsers ? (
-          <Link className={primaryButtonClassName} href="/usuarios?acao=novo">
-            Novo usuário
-          </Link>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <form action={syncGoogleSheetsManually}>
+              <SubmitButton
+                label="Sincronizar Google Sheets"
+                pendingLabel="Sincronizando..."
+                variant="secondary"
+              />
+            </form>
+            <Link className={primaryButtonClassName} href="/usuarios?acao=novo">
+              Novo usuário
+            </Link>
+          </div>
         ) : null}
       </section>
 

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { requireAuthorization } from "@/lib/access";
+import { syncEquipesSheet } from "@/lib/google-sheets/sync";
 
 function readRequiredText(formData: FormData, field: string, maxLength: number) {
   const value = formData.get(field);
@@ -61,7 +62,13 @@ export async function createTeam(formData: FormData) {
 
   revalidatePath("/equipes");
   revalidatePath("/corretores");
-  redirect("/equipes?sucesso=equipe-criada");
+  const sheetsResult = await syncEquipesSheet(
+    context.supabase,
+    context.imobiliaria_id,
+  );
+  redirect(
+    `/equipes?sucesso=equipe-criada${sheetsResult.ok ? "" : "&aviso=google-sheets"}`,
+  );
 }
 
 export async function updateTeam(formData: FormData) {
@@ -117,5 +124,11 @@ export async function updateTeam(formData: FormData) {
 
   revalidatePath("/equipes");
   revalidatePath("/corretores");
-  redirect("/equipes?sucesso=equipe-atualizada");
+  const sheetsResult = await syncEquipesSheet(
+    context.supabase,
+    context.imobiliaria_id,
+  );
+  redirect(
+    `/equipes?sucesso=equipe-atualizada${sheetsResult.ok ? "" : "&aviso=google-sheets"}`,
+  );
 }

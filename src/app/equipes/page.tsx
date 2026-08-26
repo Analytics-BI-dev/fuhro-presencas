@@ -134,6 +134,7 @@ export default async function TeamsPage({
   const editId = readParam(params, "editar");
   const errorCode = readParam(params, "erro");
   const successCode = readParam(params, "sucesso");
+  const warningCode = readParam(params, "aviso");
   const teamToEdit = editId
     ? result.data.find((team) => team.id === editId)
     : undefined;
@@ -169,6 +170,12 @@ export default async function TeamsPage({
 
       {successCode && successMessages[successCode] ? (
         <FlashMessage message={successMessages[successCode]} type="success" />
+      ) : null}
+      {warningCode === "google-sheets" ? (
+        <FlashMessage
+          message="Alteração salva, mas não foi possível sincronizar com o Google Sheets."
+          type="warning"
+        />
       ) : null}
       {errorCode && errorMessages[errorCode] && !showNewForm && !showEditForm ? (
         <FlashMessage message={errorMessages[errorCode]} type="error" />

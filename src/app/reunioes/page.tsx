@@ -142,6 +142,7 @@ export default async function MeetingsPage({
   const editId = readParam(params, "editar");
   const errorCode = readParam(params, "erro");
   const successCode = readParam(params, "sucesso");
+  const warningCode = readParam(params, "aviso");
   const meetingToEdit = editId
     ? meetings.find((meeting) => meeting.id === editId)
     : undefined;
@@ -176,6 +177,12 @@ export default async function MeetingsPage({
 
       {successCode && successMessages[successCode] ? (
         <FlashMessage message={successMessages[successCode]} type="success" />
+      ) : null}
+      {warningCode === "google-sheets" ? (
+        <FlashMessage
+          message="Alteração salva, mas não foi possível sincronizar com o Google Sheets."
+          type="warning"
+        />
       ) : null}
       {errorCode && errorMessages[errorCode] && !showNewForm && !showEditForm ? (
         <FlashMessage message={errorMessages[errorCode]} type="error" />

@@ -32,6 +32,7 @@ export function AttendancePanel({
   const [feedback, setFeedback] = useState<{
     message: string;
     ok: boolean;
+    warning?: boolean;
   } | null>(null);
   const [isPending, startTransition] = useTransition();
   const teams = useMemo(() => {
@@ -315,7 +316,9 @@ export function AttendancePanel({
         <div
           aria-live="polite"
           className={`mt-4 rounded-xl border px-4 py-3 text-sm ${
-            feedback.ok
+            feedback.warning
+              ? "border-amber-200 bg-amber-50 text-amber-800"
+              : feedback.ok
               ? "border-emerald-200 bg-emerald-50 text-emerald-800"
               : "border-red-200 bg-red-50 text-red-700"
           }`}

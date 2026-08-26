@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { requireAdminAuthorization } from "@/lib/access";
+import { syncAllGoogleSheets } from "@/lib/google-sheets/sync";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   listAllAuthUsers,
@@ -254,4 +255,20 @@ export async function updateUserStatus(formData: FormData) {
   redirect(
     `/usuarios?sucesso=${targetActive ? "usuario-reativado" : "usuario-inativado"}`,
   );
+}
+
+export async function syncGoogleSheetsManually() {
+  const context = await requireAdminAuthorization();
+  const result = await syncAllGoogleSheets(
+    context.supabase,
+    context.imobiliaria_id,
+  );
+
+  revalidatePath("/usuarios");
+
+  if (!result.ok) {
+    redirect("/usuarios?erro=google-sheets-sync");
+  }
+
+  redirect("/usuarios?sucesso=google-sheets-sync");
 }

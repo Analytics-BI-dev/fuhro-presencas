@@ -197,6 +197,7 @@ export default async function BrokersPage({
   const editId = readParam(params, "editar");
   const errorCode = readParam(params, "erro");
   const successCode = readParam(params, "sucesso");
+  const warningCode = readParam(params, "aviso");
   const normalizedSearch = search.toLocaleLowerCase("pt-BR");
   const filteredBrokers = result.data.brokers.filter((broker) => {
     const matchesSearch = normalizedSearch
@@ -252,6 +253,12 @@ export default async function BrokersPage({
 
       {successCode && successMessages[successCode] ? (
         <FlashMessage message={successMessages[successCode]} type="success" />
+      ) : null}
+      {warningCode === "google-sheets" ? (
+        <FlashMessage
+          message="Alteração salva, mas não foi possível sincronizar com o Google Sheets."
+          type="warning"
+        />
       ) : null}
       {errorCode && errorMessages[errorCode] && !showNewForm && !showEditForm ? (
         <FlashMessage message={errorMessages[errorCode]} type="error" />
