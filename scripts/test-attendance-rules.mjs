@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 
 import {
   deriveExpectedAttendance,
+  shouldIncludeBrokerInMeeting,
   summarizeGlobalBrokerAttendance,
   summarizeAttendance,
 } from "../src/lib/attendance-rules.ts";
@@ -84,6 +85,11 @@ const presences = [
   },
 ];
 const facts = deriveExpectedAttendance(meetings, links, presences);
+
+assert.equal(shouldIncludeBrokerInMeeting(true, false), true);
+assert.equal(shouldIncludeBrokerInMeeting(true, true), true);
+assert.equal(shouldIncludeBrokerInMeeting(false, true), true);
+assert.equal(shouldIncludeBrokerInMeeting(false, false), false);
 
 function summaryFor(brokerId) {
   return summarizeAttendance(facts.filter((fact) => fact.brokerId === brokerId));

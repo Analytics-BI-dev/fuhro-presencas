@@ -4,6 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { loadAgencyParticipation } from "@/lib/attendance-data";
 import {
+  shouldIncludeBrokerInMeeting,
   summarizeAttendance,
   type ExpectedAttendance,
 } from "@/lib/attendance-rules";
@@ -219,7 +220,10 @@ export async function loadMeetingDetail(
     .flatMap((fact): AttendanceBroker[] => {
       const broker = brokerById.get(fact.brokerId);
 
-      if (!broker) {
+      if (
+        !broker ||
+        !shouldIncludeBrokerInMeeting(broker.active, fact.explicit)
+      ) {
         return [];
       }
 

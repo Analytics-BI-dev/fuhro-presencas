@@ -132,7 +132,7 @@ export async function loadAgencyParticipation(
       return id
         ? [
             {
-              active: broker.ativo !== false,
+              active: broker.ativo === true,
               id,
               ksiId: readText(broker, "id_ksi"),
               name: readText(broker, "nome") ?? "Corretor sem nome",

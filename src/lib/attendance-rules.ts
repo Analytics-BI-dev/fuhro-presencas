@@ -33,6 +33,13 @@ export type AttendanceSummary = {
   total: number;
 };
 
+export function shouldIncludeBrokerInMeeting(
+  active: boolean,
+  hasExplicitAttendance: boolean,
+) {
+  return active || hasExplicitAttendance;
+}
+
 function attendanceKey(meetingId: string, brokerId: string) {
   return `${meetingId}\u0000${brokerId}`;
 }
