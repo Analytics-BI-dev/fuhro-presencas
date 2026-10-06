@@ -113,6 +113,18 @@ export function summarizeAttendance(
   };
 }
 
+export function summarizeMeetingListAttendance(
+  expectedFacts: Array<Pick<ExpectedAttendance, "attended">>,
+  recordedPresences: Array<Pick<ExplicitAttendance, "attended">>,
+  useRecordedSnapshot: boolean,
+) {
+  return summarizeAttendance(
+    useRecordedSnapshot && recordedPresences.length > 0
+      ? recordedPresences
+      : expectedFacts,
+  );
+}
+
 export function summarizeGlobalBrokerAttendance(
   brokerIds: string[],
   meetings: AttendanceMeeting[],

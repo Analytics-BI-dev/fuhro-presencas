@@ -5,6 +5,7 @@ import {
   shouldIncludeBrokerInMeeting,
   summarizeGlobalBrokerAttendance,
   summarizeAttendance,
+  summarizeMeetingListAttendance,
 } from "../src/lib/attendance-rules.ts";
 
 const meetings = [
@@ -90,6 +91,42 @@ assert.equal(shouldIncludeBrokerInMeeting(true, false), true);
 assert.equal(shouldIncludeBrokerInMeeting(true, true), true);
 assert.equal(shouldIncludeBrokerInMeeting(false, true), true);
 assert.equal(shouldIncludeBrokerInMeeting(false, false), false);
+
+const expectedMeetingFacts = [
+  ...Array.from({ length: 22 }, () => ({ attended: true })),
+  ...Array.from({ length: 14 }, () => ({ attended: false })),
+];
+const recordedMeetingPresences = [
+  ...Array.from({ length: 22 }, () => ({ attended: true })),
+  ...Array.from({ length: 7 }, () => ({ attended: false })),
+];
+
+assert.deepEqual(
+  summarizeMeetingListAttendance(
+    expectedMeetingFacts,
+    recordedMeetingPresences,
+    true,
+  ),
+  {
+    absent: 7,
+    percentage: 76,
+    present: 22,
+    total: 29,
+  },
+);
+assert.deepEqual(
+  summarizeMeetingListAttendance(
+    expectedMeetingFacts,
+    recordedMeetingPresences,
+    false,
+  ),
+  {
+    absent: 14,
+    percentage: 61,
+    present: 22,
+    total: 36,
+  },
+);
 
 function summaryFor(brokerId) {
   return summarizeAttendance(facts.filter((fact) => fact.brokerId === brokerId));

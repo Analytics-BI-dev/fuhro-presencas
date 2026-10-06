@@ -19,6 +19,7 @@ export type ParticipationBroker = {
 };
 
 export type ParticipationMeeting = {
+  createdBy: string | null;
   date: string;
   id: string;
   observation: string | null;
@@ -81,7 +82,7 @@ export async function loadAgencyParticipation(
   const [meetingResult, brokerResult, teamResult] = await Promise.all([
     supabase
       .from("reunioes")
-      .select("id,data_reuniao,titulo,observacao")
+      .select("id,data_reuniao,titulo,observacao,created_by")
       .eq("imobiliaria_id", agencyId)
       .order("data_reuniao", { ascending: false }),
     supabase
@@ -116,6 +117,7 @@ export async function loadAgencyParticipation(
       return id && date
         ? [
             {
+              createdBy: readText(meeting, "created_by"),
               date,
               id,
               observation: readText(meeting, "observacao"),

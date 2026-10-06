@@ -5,7 +5,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { loadAgencyParticipation } from "@/lib/attendance-data";
 import {
   shouldIncludeBrokerInMeeting,
-  summarizeAttendance,
+  summarizeMeetingListAttendance,
   type ExpectedAttendance,
 } from "@/lib/attendance-rules";
 
@@ -167,6 +167,15 @@ export async function loadMeetings(
 ) {
   const participation = await loadAgencyParticipation(supabase, agencyId);
   const factsByMeeting = new Map<string, ExpectedAttendance[]>();
+  const presencesByMeeting = new Map<
+    string,
+    typeof participation.presences
+  >();
+  const activeBrokerIds = new Set(
+    participation.brokers
+      .filter((broker) => broker.active)
+      .map((broker) => broker.id),
+  );
 
   for (const fact of participation.facts) {
     const meetingFacts = factsByMeeting.get(fact.meetingId) ?? [];
@@ -174,9 +183,24 @@ export async function loadMeetings(
     factsByMeeting.set(fact.meetingId, meetingFacts);
   }
 
+  for (const presence of participation.presences) {
+    const meetingPresences =
+      presencesByMeeting.get(presence.meetingId) ?? [];
+    meetingPresences.push(presence);
+    presencesByMeeting.set(presence.meetingId, meetingPresences);
+  }
+
   return participation.meetings.map((meeting): MeetingListItem => {
-    const summary = summarizeAttendance(
-      factsByMeeting.get(meeting.id) ?? [],
+    const meetingFacts = factsByMeeting.get(meeting.id) ?? [];
+    const visibleFacts = meeting.createdBy
+      ? meetingFacts.filter(
+          (fact) => activeBrokerIds.has(fact.brokerId) || fact.explicit,
+        )
+      : meetingFacts;
+    const summary = summarizeMeetingListAttendance(
+      visibleFacts,
+      presencesByMeeting.get(meeting.id) ?? [],
+      Boolean(meeting.createdBy),
     );
 
     return {
